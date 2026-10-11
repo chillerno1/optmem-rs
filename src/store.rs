@@ -212,7 +212,7 @@ impl Memo {
             })
         };
         (first..)
-            .zip(buf.chunks_exact(LOG_REC as usize))
+            .zip(buf.as_chunks::<{ LOG_REC as usize }>().0)
             .map(|(i, rec)| parse(rec).ok_or_else(|| self.corrupt(i)))
             .collect()
     }
