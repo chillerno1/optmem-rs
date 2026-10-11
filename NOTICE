@@ -1,0 +1,8 @@
+optmem-rs is a Rust reimplementation of the `memo` tool from OptMem by
+Victor Taelin: https://github.com/VictorTaelin/OptMem
+
+The OptMem design, command set, store format and the agent prompt text
+printed by `memo init` and `memo` come from that project. It had no license
+file when this port was published; rights in that original work remain with
+its author. The MIT license in LICENSE covers only the Rust code written for
+this repository.

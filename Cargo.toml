@@ -1,0 +1,23 @@
+[package]
+name = "optmem-rs"
+version = "0.1.0"
+edition = "2024"
+description = "OptMem, a permanent append-only memory for AI agents, in pure Rust"
+license = "MIT"
+repository = "https://github.com/chillerno1/optmem-rs"
+publish = false
+
+[[bin]]
+name = "memo"
+path = "src/main.rs"
+
+[dependencies]
+fancy-regex = { version = "0.19", default-features = false, features = ["std", "unicode"] }
+libc = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
