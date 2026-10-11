@@ -2,10 +2,15 @@
 name = "optmem-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89"
 description = "OptMem, a permanent append-only memory for AI agents, in pure Rust"
 license = "MIT"
 repository = "https://github.com/chillerno1/optmem-rs"
-publish = false
+homepage = "https://github.com/chillerno1/optmem-rs"
+readme = "README.md"
+keywords = ["ai", "agents", "memory", "llm", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [".github/"]
 
 [[bin]]
 name = "memo"

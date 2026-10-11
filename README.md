@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/chillerno1/optmem-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/chillerno1/optmem-rs/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![MSRV: 1.89](https://img.shields.io/badge/MSRV-1.89-blue.svg)](Cargo.toml)
 
 A permanent, append-only memory for AI agents, as one small Rust binary.
 
@@ -24,7 +25,7 @@ one memory. It is a single binary with no runtime to install.
 
 ## Install
 
-With a Rust toolchain (stable, edition 2024):
+With Rust 1.89 or newer:
 
 ```sh
 cargo install --git https://github.com/chillerno1/optmem-rs
@@ -123,16 +124,9 @@ Otherwise, output matches the Python `memo` byte for byte.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a PR, run what CI runs:
-
-```sh
-cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test
-```
-
-Keep output identical to the Python `memo` unless the change is a deliberate
-difference, and list any new one under Limitations.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Report security issues privately, as [SECURITY.md](SECURITY.md) describes.
+Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Credits
 
