@@ -17,7 +17,7 @@ name = "memo"
 path = "src/main.rs"
 
 [dependencies]
-fancy-regex = { version = "0.19", default-features = false, features = ["std", "unicode"] }
+fancy-regex = { version = "0.20", default-features = false, features = ["std", "unicode"] }
 libc = "0.2"
 
 [profile.release]
