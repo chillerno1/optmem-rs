@@ -85,6 +85,7 @@ Run `memo` with no arguments for the same list.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `MEMORY_DIR` (env) | `~/.optmem/memory` | Where the memory lives. |
+| `MEMORY_WAKE_LINES` (env) | unset | `WAKE_LINES` for this process only. |
 | `WAKE_LINES` | 96 | How many lines `wake` prints. |
 | `ENTRY_CHARS` | 280 | The longest one memory or summary may be, in bytes. |
 | `PART_CHARS` | 20000 | Largest `wake` part, in bytes. |
@@ -92,6 +93,20 @@ Run `memo` with no arguments for the same list.
 
 Sizes are stored per memory, in its `config` file. Change one with, for
 example, `memo config WAKE_LINES=128`.
+
+`MEMORY_WAKE_LINES` gives one session its own wake size without changing
+the stored one: a short-lived agent that has its task in its prompt can
+wake with `MEMORY_WAKE_LINES=24` while other sessions on the same memory
+read the stored `WAKE_LINES`. Only `wake` reads it, ahead of `config` and
+the default; empty or unset means no override, and anything else that is
+not a positive whole number is an error. It is an environment variable,
+not a flag, so the `memo wake 2 <T>` a long wake asks for next renders at
+the same size without retyping it. `memo config` prints one more line
+while it is set. A smaller size wants coarser summaries; on a memory
+whose compressions are done they already exist, so it wakes at once. With
+compressions still pending, it refuses until they are done (the same
+ones the default `wake` lists after `You are awake.`), sooner than the
+default would.
 
 ## How it works
 
@@ -119,6 +134,9 @@ example, `memo config WAKE_LINES=128`.
   non-UTF-8 config file or argument), this one prints a one-line error and
   exits 1.
 - The tool path shown in messages comes from `argv[0]`.
+- `MEMORY_WAKE_LINES` is an addition the Python tool lacks; it ignores
+  the variable. With it unset, `wake` and `config` print what Python
+  prints.
 
 Otherwise, output matches the Python `memo` byte for byte.
 

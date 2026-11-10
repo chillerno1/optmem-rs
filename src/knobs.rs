@@ -3,6 +3,7 @@
 use crate::fail::{Fail, die};
 use crate::py::{int_str, is_digits, lines, strip};
 use crate::store::{LOG_REC, TREE_REC};
+use std::ffi::OsStr;
 use std::ops::Index;
 
 #[derive(Clone, Copy)]
@@ -63,6 +64,11 @@ const KNOBS: [Spec; 4] = [
 
 pub const NAMES: &str = "WAKE_LINES, ENTRY_CHARS, PART_CHARS, PART_LINES";
 
+/// The environment variable that sets WAKE_LINES for one process and the
+/// commands it starts, leaving the memory's `config` as it is. Named like
+/// `MEMORY_DIR`, so the tool's variables share one prefix.
+pub const WAKE_ENV: &str = "MEMORY_WAKE_LINES";
+
 impl Knob {
     /// The knob a user-written name means: stripped and upper-cased, as
     /// Python's `k.strip().upper()`.
@@ -74,6 +80,14 @@ impl Knob {
 
 /// The sizes in effect.
 pub struct Knobs([u64; 4]);
+
+impl Knobs {
+    /// How many lines `wake` prints: `$MEMORY_WAKE_LINES` (as `wake_env`
+    /// read it) over the memory's `config`, over the default.
+    pub fn wake_lines(&self, env: Option<&str>) -> u64 {
+        env.map_or(self[Knob::WakeLines], saturate)
+    }
+}
 
 impl Index<Knob> for Knobs {
     type Output = u64;
@@ -121,13 +135,12 @@ impl Overrides {
         Ok(())
     }
 
-    /// A value past u64 saturates. Every use only compares it with a count
-    /// that fits u64, so the result is the same as Python's.
+    /// The sizes in effect, each this memory's value or the default.
     pub fn knobs(&self) -> Knobs {
         let value = |k: Knob| {
             self.0[k as usize]
-                .as_ref()
-                .map_or(KNOBS[k as usize].default, |v| v.parse().unwrap_or(u64::MAX))
+                .as_deref()
+                .map_or(KNOBS[k as usize].default, saturate)
         };
         Knobs(ALL.map(value))
     }
@@ -175,21 +188,44 @@ impl Overrides {
     }
 }
 
-/// Validate one knob, wherever it came from.
+/// Validated digits as a count. A value past u64 saturates: every use only
+/// compares it with a count that fits u64, so the result is Python's.
+fn saturate(v: &str) -> u64 {
+    v.parse().unwrap_or(u64::MAX)
+}
+
+/// `$MEMORY_WAKE_LINES`, given the raw value: its digits as `int()` prints
+/// them, or None when it is unset or blank, which means no override. A bad
+/// value is an error, never silently the stored size.
+pub fn wake_env(raw: Option<&OsStr>) -> Result<Option<String>, Fail> {
+    let Some(raw) = raw else { return Ok(None) };
+    let raw = raw.to_string_lossy();
+    let v = strip(&raw);
+    if v.is_empty() {
+        return Ok(None);
+    }
+    checked(WAKE_ENV, None, v, "").map(Some)
+}
+
+/// Validate one knob from `config` or `memo config`.
 fn size(k: Knob, v: &str, at: &str) -> Result<String, Fail> {
     let spec = &KNOBS[k as usize];
+    checked(spec.name, spec.max, v, at)
+}
+
+/// A positive whole number within `max`, as the digits Python's `int()`
+/// prints. `name` is what the error calls it.
+fn checked(name: &str, max: Option<u64>, v: &str, at: &str) -> Result<String, Fail> {
     if !is_digits(v) || v.bytes().all(|b| b == b'0') {
         return die(format!(
-            "{at}{} must be a positive whole number, not '{v}'.",
-            spec.name
+            "{at}{name} must be a positive whole number, not '{v}'."
         ));
     }
-    if let Some(max) = spec.max
+    if let Some(max) = max
         && !v.parse::<u64>().is_ok_and(|n| n <= max)
     {
         return die(format!(
-            "{at}{} is at most {max}: a memory has to fit the fixed-width records.",
-            spec.name
+            "{at}{name} is at most {max}: a memory has to fit the fixed-width records."
         ));
     }
     Ok(int_str(v).to_string())
@@ -303,6 +339,47 @@ mod tests {
              ENTRY_CHARS  200     the longest one memory may be, in bytes (default 280)\n\
              PART_CHARS   20000   output paging: largest part, in bytes\n\
              PART_LINES   7       output paging: largest part, in lines (default 500)\n"
+        );
+    }
+
+    fn env(v: &str) -> Result<Option<String>, Fail> {
+        wake_env(Some(OsStr::new(v)))
+    }
+
+    #[test]
+    fn wake_lines_take_the_environment_then_config_then_default() {
+        let stored = Overrides::parse("WAKE_LINES=12\n", "c").unwrap().knobs();
+        let default = Overrides::default().knobs();
+        let over = env(" 024 ").unwrap();
+        assert_eq!(over.as_deref(), Some("24"));
+        assert_eq!(stored.wake_lines(over.as_deref()), 24);
+        assert_eq!(default.wake_lines(over.as_deref()), 24);
+        assert_eq!(stored.wake_lines(None), 12);
+        assert_eq!(default.wake_lines(None), 96);
+        // Unset and blank both mean no override.
+        assert_eq!(wake_env(None).unwrap(), None);
+        assert_eq!(env("").unwrap(), None);
+        assert_eq!(env(" \t").unwrap(), None);
+        // Past u64, as the config file's values do.
+        let huge = env("0099999999999999999999").unwrap();
+        assert_eq!(huge.as_deref(), Some("99999999999999999999"));
+        assert_eq!(stored.wake_lines(huge.as_deref()), u64::MAX);
+    }
+
+    #[test]
+    fn a_bad_wake_lines_environment_names_the_variable_and_value() {
+        for bad in [
+            "0", "000", "x", "-3", "+3", "2.5", "1e3", "12 lines", "\u{0661}",
+        ] {
+            assert_eq!(
+                message(env(bad)),
+                format!("MEMORY_WAKE_LINES must be a positive whole number, not '{bad}'.")
+            );
+        }
+        let not_utf8 = <OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(b"4\xff");
+        assert_eq!(
+            message(wake_env(Some(not_utf8))),
+            "MEMORY_WAKE_LINES must be a positive whole number, not '4\u{fffd}'."
         );
     }
 }
