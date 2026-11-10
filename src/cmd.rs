@@ -2,7 +2,7 @@
 
 use crate::block::{Block, cover, paginate};
 use crate::fail::{Fail, at, die};
-use crate::knobs::{Knob, NAMES, Overrides};
+use crate::knobs::{Knob, NAMES, Overrides, WAKE_ENV, wake_env};
 use crate::py::{
     date_shape, int_str, is_digits, plural, pretty, python_regex, real_date, rstrip, strip, today,
 };
@@ -210,6 +210,9 @@ pub fn wake(m: &Memo, args: &[String], out: &mut String) -> Result<(), Fail> {
     if args.len() > 2 || !args.iter().all(|a| is_digits(a)) {
         return die(format!("usage: {} wake [part [T]]", m.me));
     }
+    // Read from the environment, not an argument, so `wake 2 T` typed in the
+    // same session renders every part at the same size.
+    let env = wake_env(std::env::var_os(WAKE_ENV).as_deref())?;
     let k = args.first().map_or("1", |a| int_str(a));
     let t = match args.get(1).map(|a| int_str(a)) {
         None => now,
@@ -238,7 +241,7 @@ pub fn wake(m: &Memo, args: &[String], out: &mut String) -> Result<(), Fail> {
         return Ok(());
     }
     let mut lines = vec![];
-    for b in cover(t, m.knobs[Knob::WakeLines]) {
+    for b in cover(t, m.knobs.wake_lines(env.as_deref())) {
         if let Some(i) = b.single() {
             lines.push(m.log_get(i)?.to_string());
             continue;
@@ -369,6 +372,16 @@ pub fn config(m: &Memo, args: &[String], out: &mut String) -> Result<(), Fail> {
         write_config(&m.dir, &over, &m.me)?;
     }
     out.push_str(&over.table());
+    // The stored sizes are the table; a session's own wake size is not.
+    match wake_env(std::env::var_os(WAKE_ENV).as_deref()) {
+        Ok(None) => {}
+        Ok(Some(n)) => say(
+            out,
+            &format!("{WAKE_ENV}={n} is set here: wake uses it in place of WAKE_LINES."),
+        ),
+        Err(Fail::Die(e)) => say(out, &format!("{e} wake refuses to run until it is fixed.")),
+        Err(e) => return Err(e),
+    }
     Ok(())
 }
 
